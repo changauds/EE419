@@ -36,18 +36,17 @@ class ServerSocket:
         self.server_ip = "127.0.0.1"      
         #storing client socket objects
         self.clients=[]        
-        #create tcp socket object
+        #create TCP socket object
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         #take user input for server port # and bind it to socket created
         self.server.bind((self.server_ip, port_num))
         #always LISTENING
-        self.server.listen(0)
+        self.server.listen(5) # handling the buffer
         #print server IP address and port once socket has been bound and listening
         print(f"Listening on {self.server_ip}:{port_num}")
 
-    #this method should accept connections from clients
+    #this method should continuously accept connections from clients
     def start_server(self):
-        # continuously accept connections from clients
         while True:
             client_socket, client_address = self.server.accept()
             print(f"Accepted connection from {client_address[0]}: {client_address[1]}")
@@ -58,8 +57,8 @@ class ServerSocket:
             client_thread.start()
             #first message sent from cilent is their username
 
+    # broadcast a client's user_mesasge to all other clients
     def broadcast(self, user_message, sender_socket):
-        #broadcast a client's user_mesasge to all other clients
         for client in self.clients:
             if client != sender_socket:
                 try:
@@ -68,6 +67,7 @@ class ServerSocket:
                     print(f"Error broadcasting message: {str(e)}")
                     # remove client if sending fail
                     self.clients.remove(client)
+                    client.close()
 
     def client_handling(self, client_socket, client_address):
         #tries to receive messages from different clients
@@ -75,7 +75,6 @@ class ServerSocket:
             #receive username fom client
             username = client_socket.recv(1024).decode('utf-8')
             print(f"{client_address[0]}:{client_address[1]} is now known as {username}")
-            
             #OPTIONAL: when client joins server for first time, broadcast its name by calling the broadcast() function
             self.broadcast(f"{username} has joined the chat.", client_socket)
 
@@ -85,6 +84,7 @@ class ServerSocket:
                 if not data:
                     # If no data is received, the client has disconnected
                     print(f"Connection with {client_address[0]}:{client_address[1]} closed.")
+                    self.broadcast(f"{username} has left the chat.", client_socket)
                     break
                 # Decode received data
                 message = data.decode("utf-8")
@@ -95,14 +95,13 @@ class ServerSocket:
             print(f"Error handling client {client_address}: {str(e)}")
         finally:
             # Ensure the client socket is closed and removed from the clients list
-            client_socket.close()
             self.clients.remove(client_socket)
+            client_socket.close()
             # OPTIONAL: notify others that the client has left
             self.broadcast(f"{username} has left the chat.", client_socket)
 
 if __name__ == "__main__":
     # initialize the server with the specified port number
-    server =ServerSocket(1234)
-    
+    server = ServerSocket(1234)
     # start the server to accept connections
     server.start_server()
