@@ -5,8 +5,10 @@ Audrey Chang, Grace Jun
 -define functions and attributes w/in server class
     -_init_
             -creates client socket with user entering server IP or hostname and port
-            -a connection to the server should be established after ^^
-            -once connection is established b/w client/server, ask user to enter username and send it to server
+            
+    - create_connection()
+            - connection to the server should be established
+            - once connection is established b/w client/server, ask user to enter username and send it to server
 
     -message_handling()
             -prints messages received from other users (sent via server)
@@ -26,21 +28,28 @@ import socket
 class Client_Socket():
 
     def __init__(self, server_IP, port):
+        self.client_socket = None
         self.username = None
+        self.create_connection(server_IP, port)
+
+    def create_connection(self, server_IP, port):
         try:
             #creates client socket with user entering server IP or hostname and port
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_socket.connect((server_IP, port))
 
             #a connection to the server should be established after ^^
-            #once connection is established b/w client/server, ask user to enter username and send it to server
+            # once connection is established ask user to enter username and send it to server
             self.username = input("Please enter your username: ")
             self.client_socket.send(self.username.encode('utf-8'))
 
-            # print welcome message from server
-            data = self.client_socket.recv(1024)
-            print(data.decode('utf-8'))
-            
+            # start message handling thread
+            message_thread = threading.Thread(target=self.message_handling)
+            message_thread.start()
+            # Keep the main thread running while other threads are active
+            input_thread = threading.Thread(target=self.input_handling)
+            input_thread.start()
+
         except Exception as e:
             print(f"Connection error: {str(e)}")
             self.close_connection()
@@ -48,17 +57,19 @@ class Client_Socket():
     def message_handling(self):
         while True:
             try:
+                # print welcome message from server
                 data = self.client_socket.recv(1024)
                 if data:
                     print(data.decode('utf-8'))
                 else:
                 # If no data is received, the server needs to close connection
                     print("Disconnected from server.")
+                    self.close_connection()
                     break
             except Exception as e:
                 print(f"Error handling message: {str(e)}")
+                self.close_connection()
                 break
-            self.close_connection()
     
     def input_handling(self):
         while True:
@@ -67,10 +78,13 @@ class Client_Socket():
                 self.client_socket.send(message.encode('utf-8'))
             except Exception as e:
                 print(f"Error sending message: {str(e)}")
+                self.close_connection()
+                break
 
     def close_connection(self):
         try:
-            self.client_socket.close()
+            if self.client_socket:
+                self.client_socket.close()
         except Exception as e:
             print(f"Error Closing Connection: {str(e)}")
         finally:
@@ -81,14 +95,5 @@ class Client_Socket():
 if __name__ == '__main__':
     try:
         client = Client_Socket("127.0.0.1", 1234)
-        message_thread = threading.Thread(target=client.message_handling)
-        input_thread = threading.Thread(target=client.input_handling)
-       
-        message_thread.start()
-        input_thread.start()
-       
-        # Keep the main thread running while other threads are active
-        message_thread.join()
-        input_thread.join()
     except Exception as e:
         print(f"An error occurred: {str(e)}")
